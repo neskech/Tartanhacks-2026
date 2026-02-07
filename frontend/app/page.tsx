@@ -2,6 +2,9 @@
 import { AppHeader } from "@/components/appHeader";
 import { MoodBoardButton } from "@/components/moodBoardButton";
 import { MoodBoardGrid } from "@/components/moodBoardGrid";
+import { CollapsibleSidebar } from "@/components/collapsibleSidebar";
+import { FindSimilarButton } from "@/components/findSimilarButton";
+import { PromptTextbox } from "@/components/promptTextbox";
 
 const MOCK_DATA = [
   { id: 1, name: "Kitchen Inspo", image: "../img/dsfgsdfgsdfg.jpeg" },
@@ -46,8 +49,24 @@ export default function Home() {
           ))}
         </MoodBoardGrid>
       </main> */}
+      <div className="flex h-screen w-full overflow-hidden">
+        {/* 1. Main Content (The Left Side) */}
+        <div className="flex-1 overflow-auto">
+          {/* Your Grid/Header goes here */}
+        </div>
+        <CollapsibleSidebar>
+          <h2 className="text-lg font-bold mb-4 text-gray-800">Pose Details</h2>
 
-      
+          <PromptTextbox
+            label="Description"
+            placeholder="Add notes about the lighting or camera angle..."
+          />
+
+          <div className="mt-auto">
+            <FindSimilarButton onClick={() => console.log("Searching...")} />
+          </div>
+        </CollapsibleSidebar>
+      </div>
     </div>
   );
 }
