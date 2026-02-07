@@ -1,7 +1,9 @@
 "use client";
-import React, { useState } from "react";
+import { useState } from "react";
 import { Layers, X } from "lucide-react";
 import { BoardItem } from "@/lib/db";
+import Link from "next/link";
+import { BsChevronLeft } from "react-icons/bs";
 
 interface LayerPanelProps {
   items: BoardItem[];
@@ -25,6 +27,15 @@ export const LayerPanel = ({ items, onDelete, onRename }: LayerPanelProps) => {
 
   return (
     <div className="z-20 flex h-full w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
+      <div className=" py-2 px-4">
+        <Link href="/" className="">
+          <button className="border px-4 py-1 rounded-xl font-semibold text-gray-600 flex items-center gap-1 hover:text-black hover:bg-blue-200 transition-colors">
+            <BsChevronLeft size={14} className="inline-block" />
+            <p>Back</p>
+          </button>
+        </Link>
+      </div>
+
       <div className="flex h-14 items-center border-b px-4">
         <h3 className="flex items-center gap-2 text-xs font-bold tracking-widest text-gray-400 uppercase">
           <Layers size={14} /> Layers ({items.length})

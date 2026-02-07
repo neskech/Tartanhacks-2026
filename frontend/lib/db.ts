@@ -17,7 +17,10 @@ export interface BoardItem {
   y: number;
   zIndex: number;    
   width: number;
-  height: number;      
+  height: number;     
+  lambda?: number;
+  k?: number;
+  desc?: string; 
 }
 
 export class MoodboardDB extends Dexie {
