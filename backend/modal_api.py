@@ -213,7 +213,7 @@ def is_portrait_embedding(
 
 # --- 1. THE ORCHESTRATOR (CPU ONLY) ---
 # REMOVED: gpu="T4". This function just routes traffic, so keep it cheap (CPU).
-@app.function(image=image)
+@app.function(image=image, keep_warm=1)
 def run_pose_pipeline(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Orchestrates the pipeline:
@@ -269,7 +269,7 @@ def run_pose_pipeline(data: Dict[str, Any]) -> Dict[str, Any]:
 
 # --- 2. THE WEB ENDPOINT ---
 # Use `web_endpoint` for standard JSON APIs.
-@app.function(image=image)
+@app.function(image=image, keep_warm=1)
 @modal.web_endpoint(method="POST")
 def image_to_pose_embedding(data: Dict[str, Any]):
     """
@@ -291,7 +291,7 @@ def image_to_pose_embedding(data: Dict[str, Any]):
 
 
 # --- 3. CLIP TEXT EMBEDDING ---
-@app.function(image=image)
+@app.function(image=image, keep_warm=1)
 @modal.web_endpoint(method="POST")
 def text_to_clip_embedding(data: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -338,7 +338,7 @@ def text_to_clip_embedding(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # --- 4. CLIP IMAGE EMBEDDING ---
-@app.function(image=image)
+@app.function(image=image, keep_warm=1)
 @modal.web_endpoint(method="POST")
 def image_to_clip_embedding(data: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -387,7 +387,7 @@ def image_to_clip_embedding(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # --- 5. THE SEARCH LOGIC (Can be called via .remote) ---
-@app.function(image=image, volumes={"/root/data": volume}, container_idle_timeout=300)
+@app.function(image=image, volumes={"/root/data": volume}, container_idle_timeout=300, keep_warm=1)
 def run_search_pipeline(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Search for similar Pinterest images using hybrid pose + CLIP similarity.
@@ -629,7 +629,7 @@ def run_search_pipeline(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # --- 6. THE WEB ENDPOINT WRAPPER ---
-@app.function(image=image, volumes={"/root/data": volume})
+@app.function(image=image, volumes={"/root/data": volume}, keep_warm=1)
 @modal.web_endpoint(method="POST")
 def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
     """

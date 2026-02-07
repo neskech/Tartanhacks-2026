@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 
 # Image paths - update these to point to your test images
-IMAGE_A_PATH = Path(__file__).parent / "data" / "test" / "off.png"
+IMAGE_A_PATH = Path(__file__).parent / "data" / "test" / "image.png"
 IMAGE_B_PATH = Path(__file__).parent / "data" / "test" / "draw.png"
 IMAGE_C_PATH = Path(__file__).parent / "data" / "test" / "real.png"
 

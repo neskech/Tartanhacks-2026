@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 
 # Test image path
-TEST_IMAGE_PATH = Path(__file__).parent / "data" / "test" / "real.png"
+TEST_IMAGE_PATH = Path(__file__).parent / "data" / "test" / "img.png"
 # Text description for the search
 TEST_TEXT = "a person"
 
