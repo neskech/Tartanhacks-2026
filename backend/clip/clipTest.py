@@ -3,14 +3,15 @@ from PIL import Image
 import torch
 
 image = Image.open("clip/dog.jpg")
-queries = ["dog", "cat"]
+image2 = Image.open("clip/cat.jpg")
+queries = ["dog", "cat", "fish", "human", "field", "flowers"]
 
 CLIP = Clip()
 # CLIP.setup()
-image_enc = CLIP.encode_image(image)
+image_enc = CLIP.encode_image([image, image2])
 query_enc = CLIP.encode_text(queries)
 
-similarity_score = torch.matmul(query_enc.pooler_output , image_enc.pooler_output.T)
+similarity_score = CLIP.get_similarity_score(query_enc, image_enc)
 print(similarity_score)
 
 

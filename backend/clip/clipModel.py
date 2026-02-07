@@ -47,7 +47,7 @@ class Clip():
 
         return outputs
 
-    def get_similarity_score(text_enc, image_enc):
+    def get_similarity_score(self, text_enc, image_enc):
         return torch.matmul(text_enc.pooler_output, image_enc.pooler_output.T)
     
 
