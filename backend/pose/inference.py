@@ -20,9 +20,9 @@ def _load(is_volume: bool):
     parent = Path(__file__).resolve().parent.parent
     if is_volume:
         parent = parent / 'data'
-    CHECKPOINT_PATH = str(parent / 'checkpoints' / 'sam-3d-body-vith' /
+    CHECKPOINT_PATH = str(parent / 'checkpoints' / 'sam-3d-body-dinov3' /
                           'model.ckpt')
-    MHR_PATH = str(parent / 'checkpoints' / 'sam-3d-body-vith' / 'assets' /
+    MHR_PATH = str(parent / 'checkpoints' / 'sam-3d-body-dinov3' / 'assets' /
                    'mhr_model.pt')
     return load_sam_3d_body(checkpoint_path=CHECKPOINT_PATH, mhr_path=MHR_PATH)
 

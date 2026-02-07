@@ -4,7 +4,7 @@ Modal wrapper for PoseC3D 2D pose embedding extraction.
 from pathlib import Path
 from typing import Dict, Tuple
 
-from modal_app import image, app
+from modal_app import image, app, volume
 import modal
 import numpy as np
 import torch
@@ -50,7 +50,7 @@ def _load_model():
     parent = Path(__file__).resolve().parent.parent
     config_path = str(parent / 'pose_embed' / 'configs' / 'skeleton' / 'posec3d' /
                       'slowonly_r50_8xb16-u48-240e_ntu60-xsub-keypoint.py')
-    checkpoint_path = str(parent / 'checkpoints' /
+    checkpoint_path = str(parent / 'data' / 'checkpoints' /
                           'slowonly_r50_8xb16-u48-240e_ntu60-xsub-keypoint_20220815-38db104b.pth')
 
     config = mmengine.Config.fromfile(config_path)
@@ -66,7 +66,7 @@ def _load_model():
     return model, config
 
 
-@app.cls(gpu="T4", image=image)
+@app.cls(gpu="T4", image=image, volumes={"/root/data": volume})
 class PoseEmbedding:
     """Modal model class for extracting embeddings from 2D poses using PoseC3D."""
 
@@ -154,8 +154,14 @@ class PoseEmbedding:
         data = pseudo_collate([data])
 
         # Extract features
+        # pseudo_collate returns a dict with 'inputs' (list) and 'data_samples' keys
+        # Convert inputs list to tensor if needed
         with torch.no_grad():
-            inputs = data[0]['inputs'].to('cuda:0')
+            inputs = data['inputs']
+            # If inputs is a list, stack it into a tensor
+            if isinstance(inputs, list):
+                inputs = torch.stack(inputs)
+            inputs = inputs.to('cuda:0')
             # Extract backbone features
             features, _ = self.model.extract_feat(inputs,
                                                   stage='backbone',
