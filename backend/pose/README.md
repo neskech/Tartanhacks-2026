@@ -1,4 +1,11 @@
+# READ: OUR CHANGES
+
+We must download model checkpoints from hugging face. Download the checkpoints to
+backend/checkpoints/ from https://drive.google.com/drive/u/1/folders/1cNZ7-eKvRF2zoIZwkG3UjAtdrWRiRInO (only dinoV3)
+
 # SAM 3D
+
+
 
 SAM 3D Body is one part of SAM 3D, a pair of models for object and human mesh reconstruction. If you’re looking for SAM 3D Objects, [click here](https://github.com/facebookresearch/sam-3d-objects).
 
