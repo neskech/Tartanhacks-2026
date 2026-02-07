@@ -4,12 +4,15 @@ Modal wrapper for SAM 3D Body 2D pose inference.
 from pathlib import Path
 from typing import Dict, Tuple
 
-from backend.modal_app import image, app
+from modal_app import image, app
 import modal
 import numpy as np
-from sam_3d_body import SAM3DBodyEstimator, load_sam_3d_body
-from sam_3d_body.metadata.mhr70 import mhr_names
-from tools.build_detector import HumanDetector
+
+# Container-only imports - use Image.imports() context manager
+with image.imports():
+    from sam_3d_body import SAM3DBodyEstimator, load_sam_3d_body
+    from sam_3d_body.metadata.mhr70 import mhr_names
+    from tools.build_detector import HumanDetector
 
 
 def _load():
@@ -22,7 +25,7 @@ def _load():
     return load_sam_3d_body(checkpoint_path=CHECKPOINT_PATH, mhr_path=MHR_PATH)
 
 
-@app.cls(gpu="A10G", image=image)
+@app.cls(gpu="T4", image=image)
 class SAM3DBodyInference:
     """Modal model class for SAM 3D Body 2D pose inference."""
 
