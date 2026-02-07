@@ -1,25 +1,28 @@
-# Mosaic: Competitive Art Search Platform
+# PoseFramer: The Next Iteration Of Art Reference
 
 **Tartanhacks 2026 - Team BlueTrees**
 
-A competitive art platform that brings together **competitive gaming**, **digital art**, and **AI** - three seemingly disparate worlds united in one system. Artists compete by creating art from prompts, and our AI-powered search engine helps find similar artwork for voting and inspiration.
+A hybrid image search system that helps artists find the perfect reference images by combining pose estimation and semantic search. Built with Modal.com for serverless GPU inference.
 
-## The Mosaic
+## The Problem
 
-Like a mosaic, this project combines unrelated pieces into something beautiful:
-- 🎮 **Competitive Gaming**: Art battles where creators compete
-- 🎨 **Digital Art**: Pinterest-style image database
-- 🤖 **AI**: Hybrid pose + semantic search powered by Modal.com
+Finding reference material is a pain for artists:
+- **Endless searching** for the perfect pose
+- **Compromising** with reference that's not close to the initial ideation
+- **Anatomical errors** caused by poor reference material
 
-## Overview
+Existing technology falls short:
+- **Text search** doesn't understand pose structure
+- **Reverse image search** requires exact visual matches
 
-This system enables competitive art by allowing artists to:
-- **Search by pose**: Find images with similar body poses using SAM 3D Body + PoseC3D
-- **Search by description**: Find images matching text prompts using CLIP embeddings
-- **Hybrid search**: Combine pose and semantic similarity for the best matches
-- **Filter portraits**: Automatically exclude portrait images to focus on full-body poses
+## Our Solution
 
-Perfect for art battle competitions where artists need to find similar work, get inspired, or verify originality!
+PoseFramer allows artists to search for reference images using:
+- **Pose similarity**: Find images with similar body poses using SAM 3D Body + PoseC3D
+- **Semantic search**: Find images matching text descriptions using CLIP embeddings
+- **Hybrid search**: Combine both for the best matches
+
+**Goal**: Allow artists to create perfect mosaics without compromising on their creative vision.
 
 ## Architecture
 
@@ -67,13 +70,12 @@ Perfect for art battle competitions where artists need to find similar work, get
 
 ## Features
 
-- **Pose-based search**: Find images with similar body poses - perfect for art battles where pose matters
+- **Pose-based search**: Find images with similar body poses - perfect for reference matching
 - **CLIP semantic search**: Find images matching text descriptions - "a person doing yoga", "warrior pose", etc.
 - **Hybrid search**: Combine pose and CLIP with configurable weights for the best matches
 - **Portrait filtering**: Automatically filter out portrait images to focus on full-body poses
 - **Serverless GPU inference**: Powered by Modal.com - scales automatically
 - **Fast pre-computed embeddings**: Uses cached embeddings for instant search results
-- **Competitive art ready**: Search similar artwork for voting, inspiration, or originality checks
 
 ## Project Structure
 
@@ -232,7 +234,7 @@ Search for similar images using pose + CLIP hybrid search.
 ```
 
 **Parameters**:
-- `sketch`: Base64-encoded query image
+- `sketch`: Base64-encoded query image (your sketch or reference)
 - `text`: Text description for CLIP search
 - `k`: Number of results to return (default: 10)
 - `lambda`: Weight for pose similarity (0-1, default: 0.5)
@@ -258,8 +260,12 @@ Search for similar images using pose + CLIP hybrid search.
 
 **Search Formula**:
 ```
-closeness_score = lambda * pose_similarity + (1 - lambda) * clip_similarity
+Sim = λ × Pose_Sim + (1 - λ) × Clip_Sim
 ```
+
+Where:
+- `Pose_Sim = f(ImageA, ImageB)` - Cosine similarity between pose embeddings
+- `Clip_Sim = f(Description, ImageB)` - Cosine similarity between CLIP embeddings
 
 ## Usage Examples
 
@@ -274,16 +280,16 @@ import base64
 search_function = modal.Function.from_name("backend", "search_similar_images")
 endpoint_url = search_function.get_web_url()
 
-# Load your art piece
-with open("my_art.png", "rb") as f:
+# Load your sketch or reference image
+with open("my_sketch.png", "rb") as f:
     image_bytes = f.read()
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-# Search for similar artwork
+# Search for similar reference images
 payload = {
     "sketch": image_base64,
-    "text": "a warrior in battle pose",  # The prompt from the art battle
-    "k": 6,  # Top 6 similar pieces
+    "text": "a warrior in battle pose",  # Describe what you're looking for
+    "k": 6,  # Top 6 results
     "lambda": 0.7,  # 70% pose similarity, 30% semantic similarity
     "filter_portraits": True  # Only full-body poses
 }
@@ -291,7 +297,7 @@ payload = {
 response = requests.post(endpoint_url, json=payload, timeout=300)
 results = response.json()
 
-print("Similar artwork found:")
+print("Similar reference images found:")
 for i, result in enumerate(results["results"], 1):
     print(f"{i}. {result['path']} (similarity: {result['score']:.4f})")
 ```
@@ -315,104 +321,37 @@ python backend/test_clip_text_embeddings.py
 
 ## How It Works
 
-### The Competitive Art Flow
+### The Pose Embedding Pipeline
 
-1. **Artist creates art** from a prompt (e.g., "warrior pose")
-2. **Upload to system** - image gets processed for embeddings
-3. **Search for similar work** - find other artists' interpretations
-4. **Vote and compete** - see how your art compares!
+1. **Pose Detection**: SAM 3D Body detects 2D pose keypoints (70 joints)
+2. **Pose Embedding**: PoseC3D extracts a 512-dimensional embedding from the pose
+3. **Similarity**: Cosine similarity between pose embeddings
 
-### Technical Pipeline
+### The CLIP Embedding Pipeline
 
-#### 1. Pose Embedding Pipeline
-- **Pose Detection**: SAM 3D Body detects 2D pose keypoints (70 joints)
-- **Pose Embedding**: PoseC3D extracts a 512-dimensional embedding
-- **Similarity**: Cosine similarity between pose embeddings
+1. **Text/Image Encoding**: CLIP model encodes text or images into 512-dim vectors
+2. **Similarity**: Cosine similarity between CLIP embeddings
+   - If image and text represent the same concept, their embeddings are similar
 
-#### 2. CLIP Embedding Pipeline
-- **Text/Image Encoding**: CLIP model encodes text or images into 512-dim vectors
-- **Similarity**: Cosine similarity between CLIP embeddings
+### Hybrid Search
 
-#### 3. Hybrid Search
 1. **Query Processing**:
    - Extract pose embedding from sketch/image
    - Extract CLIP embedding from text query
 2. **Database Search**:
    - Load pre-computed embeddings from `embeddings.json`
-   - Compute hybrid similarity scores: `score = λ × pose_sim + (1-λ) × clip_sim`
+   - Compute hybrid similarity scores: `Sim = λ × Pose_Sim + (1-λ) × Clip_Sim`
    - Filter portraits if requested (using pre-computed CLIP embeddings)
-3. **Ranking**: Sort by closeness score and return top-k results
+3. **Ranking**: Sort by similarity score and return top-k results
 
-#### 4. Portrait Filtering
-- Uses pre-computed CLIP text embeddings for portrait-related keywords
+### Portrait Filtering
+
+- Uses pre-computed CLIP text embeddings for portrait-related keywords ("a portrait", "headshot", etc.)
 - Compares image CLIP embeddings (from JSON) to portrait vs full-body text embeddings
 - Filters during scoring loop (no additional CLIP inference needed - super fast!)
 
-## Configuration
 
-### Modal Image Setup
 
-The Modal image is configured in `backend/modal_app.py`:
-- Python 3.11
-- CUDA dependencies for GPU inference
-- Local code mounted at runtime
-- Persistent volume for embeddings and images
-
-### Model Checkpoints
-
-Required checkpoints (should be in `backend/checkpoints/`):
-- SAM 3D Body model
-- PoseC3D model weights
-- CLIP model (auto-downloaded from HuggingFace)
-
-## Performance
-
-- **Pose embedding**: ~1-2 seconds per image (GPU inference)
-- **CLIP embedding**: ~0.5 seconds per image (GPU inference)
-- **Search**: ~0.7 seconds to load 103MB embeddings.json, then instant results
-- **Portrait filtering**: Negligible overhead (uses pre-computed embeddings - no extra inference!)
-- **Database**: Currently ~3,500 images indexed
-
-## Quick Start
-
-1. **Deploy to Modal**:
-   ```bash
-   modal deploy backend/modal_api.py
-   ```
-
-2. **Generate embeddings** (if you have new images):
-   ```bash
-   python backend/pinterest/generate_embeddings.py
-   ```
-
-3. **Test the search**:
-   ```bash
-   python backend/test_search_images.py
-   ```
-
-## Troubleshooting
-
-### "ModuleNotFoundError: No module named 'backend'"
-- Ensure Modal image includes all necessary directories
-- Check `PYTHONPATH` in `modal_app.py`
-
-### "Embeddings file not found"
-- Run `python pinterest/generate_embeddings.py` first
-- Ensure `data/embeddings.json` exists
-
-### "No person detected"
-- Image may not contain a visible person
-- Try adjusting `use_bbox_detector` parameter
-
-### Slow search performance
-- Ensure `embeddings.json` is in the Modal volume
-- Check that portrait filtering is using pre-computed embeddings (not re-encoding images)
-
-## Team
-
-**Team BlueTrees** - Tartanhacks 2026
-
-Built for the "Mosaic" theme - bringing together competitive gaming, digital art, and AI into one cohesive platform.
 
 ## Tech Stack
 
@@ -420,4 +359,3 @@ Built for the "Mosaic" theme - bringing together competitive gaming, digital art
 - **Models**: SAM 3D Body, PoseC3D, OpenAI CLIP
 - **Frontend**: Next.js (see `frontend/` directory)
 - **Storage**: Modal Volumes for embeddings and images
-
