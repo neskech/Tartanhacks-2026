@@ -14,7 +14,7 @@ with image.imports():
     from PIL import Image
 
 
-@app.cls(gpu="T4", image=image)
+@app.cls(gpu="A10G", image=image)
 class Clip:
     """Modal model class for CLIP text and image embeddings."""
 

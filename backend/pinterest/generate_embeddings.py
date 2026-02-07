@@ -135,7 +135,7 @@ def main():
 
     # Find all image files
     print(f"Scanning for images in {data_dir}...")
-    image_files = find_image_files(data_dir)[:2]
+    image_files = find_image_files(data_dir)
     print(f"Found {len(image_files)} image files")
 
     if len(image_files) == 0:

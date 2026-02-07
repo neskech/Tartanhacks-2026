@@ -1,4 +1,4 @@
-from modal_app import app, image
+from modal_app import app, image, volume
 from pose.inference import SAM3DBodyInference
 from pose_embed.inference import PoseEmbedding
 from clip.clipModel import Clip
@@ -282,7 +282,7 @@ def image_to_clip_embedding(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # --- 5. SKETCH-TO-PINTEREST SEARCH ---
-@app.function(image=image)
+@app.function(image=image, volumes={"/root/data": volume})
 @modal.web_endpoint(method="POST")
 def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
     """

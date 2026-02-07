@@ -27,7 +27,7 @@ def _load(is_volume: bool):
     return load_sam_3d_body(checkpoint_path=CHECKPOINT_PATH, mhr_path=MHR_PATH)
 
 
-@app.cls(gpu="T4", image=image, volumes={"/root/data": volume})
+@app.cls(gpu="A10G", image=image, volumes={"/root/data": volume})
 class SAM3DBodyInference:
     """Modal model class for SAM 3D Body 2D pose inference."""
 
@@ -69,7 +69,7 @@ class SAM3DBodyInference:
             Dictionary mapping joint names to (x, y) coordinates.
             Returns empty dict if no person is detected.
         """
-
+        use_bbox_detector = False
         # Validate and convert image to numpy array
         img = np.asarray(image).copy()
         # Validate image shape
