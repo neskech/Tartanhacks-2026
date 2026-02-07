@@ -4,7 +4,7 @@ Modal wrapper for SAM 3D Body 2D pose inference.
 from pathlib import Path
 from typing import Dict, Tuple
 
-from modal_app import image, app
+from modal_app import image, app, volume
 import modal
 import numpy as np
 
@@ -15,9 +15,11 @@ with image.imports():
     from tools.build_detector import HumanDetector
 
 
-def _load():
+def _load(is_volume: bool):
     # Should be backend/ locally and /root on modal
     parent = Path(__file__).resolve().parent.parent
+    if is_volume:
+        parent = parent / 'data'
     CHECKPOINT_PATH = str(parent / 'checkpoints' / 'sam-3d-body-vith' /
                           'model.ckpt')
     MHR_PATH = str(parent / 'checkpoints' / 'sam-3d-body-vith' / 'assets' /
@@ -25,7 +27,7 @@ def _load():
     return load_sam_3d_body(checkpoint_path=CHECKPOINT_PATH, mhr_path=MHR_PATH)
 
 
-@app.cls(gpu="T4", image=image)
+@app.cls(gpu="T4", image=image, volumes={"/root/data": volume})
 class SAM3DBodyInference:
     """Modal model class for SAM 3D Body 2D pose inference."""
 
@@ -36,7 +38,8 @@ class SAM3DBodyInference:
         print("Loading SAM 3D Body model...")
         # Load model from HuggingFace
         # Default to dinov3 model, can be made configurable
-        self.model, self.model_cfg = _load()
+        # TODO: Change to false if testing locally
+        self.model, self.model_cfg = _load(is_volume=True)
 
         # Store joint names for keypoint mapping
         self.joint_names = mhr_names
@@ -72,8 +75,7 @@ class SAM3DBodyInference:
         # Validate image shape
         if len(img.shape) != 3 or img.shape[2] != 3:
             raise ValueError(
-                f"Expected RGB image with shape (H, W, 3), got {img.shape}"
-            )
+                f"Expected RGB image with shape (H, W, 3), got {img.shape}")
 
         # Create estimator
         estimator = SAM3DBodyEstimator(
