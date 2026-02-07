@@ -14,6 +14,7 @@ export interface SearchParams {
   sketch: string;
   text?: string;
   k?: number;
+  lambda?: number;
 }
 
 const MODAL_ENDPOINT =
@@ -30,7 +31,7 @@ export async function searchSimilarImages(
         sketch: params.sketch,
         text: params.text || "", 
         k: params.k ?? 5,
-        lambda: 0.5,
+        lambda: params.lambda ?? 0.95,
         filter_portraits: false,
       }),
     });

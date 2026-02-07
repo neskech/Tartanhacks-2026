@@ -34,7 +34,7 @@ export const LayerPanel = ({ items, onDelete, onRename }: LayerPanelProps) => {
             <p>Back</p>
           </button>
         </Link>
-       </div>
+      </div>
 
       <div className="flex h-14 items-center border-b px-4">
         <h3 className="flex items-center gap-2 text-xs font-bold tracking-widest text-gray-400 uppercase">

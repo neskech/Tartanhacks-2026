@@ -29,7 +29,7 @@ export default function BoardPage() {
     fileOrUrl: File | string,
     label: string = "Untitled",
     xOffset: number = 0,
-    yOffset: number = 0  
+    yOffset: number = 0
   ) => {
     let blob: Blob;
 
@@ -68,33 +68,33 @@ export default function BoardPage() {
 
   const handleFindSimilar = async (item: BoardItem) => {
     setIsSearching(true);
-    
+
     try {
       const reader = new FileReader();
       reader.readAsDataURL(item.fileBlob);
-      
-      reader.onloadend = async () => {
-        const base64String = (reader.result as string).split(",")[1]; 
 
-        
+      reader.onloadend = async () => {
+        const base64String = (reader.result as string).split(",")[1];
+
         const response = await searchSimilarImages({
           sketch: base64String,
-          text: "similar pose", 
-          k: 4
+          text: item.desc || "",
+          k: item.k ?? 4,
+          lambda: item.lambda ?? 0.95,
         });
 
         if (response.success) {
           response.results.forEach((res, index) => {
-             const dataUrl = `data:image/jpeg;base64,${res.image}`;
-             
-             handleAddImage(dataUrl, `Result ${index + 1}`, (index + 1) * 260, 0);
+            const dataUrl = `data:image/jpeg;base64,${res.image}`;
+
+            handleAddImage(dataUrl, `Result ${index + 1}`, (index + 1) * 260, 0);
           });
         } else {
           alert("No results found or API error");
         }
         setIsSearching(false);
       };
-      
+
     } catch (e) {
       console.error(e);
       setIsSearching(false);
