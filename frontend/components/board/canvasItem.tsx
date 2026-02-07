@@ -1,14 +1,14 @@
 "use client";
 
 import { Rnd } from "react-rnd";
-import { X, ScanSearch } from "lucide-react"; // Import ScanSearch icon
+import { X, ScanSearch } from "lucide-react"; 
 import { BoardItem } from "@/lib/db";
 
 interface CanvasItemProps {
   item: BoardItem;
   onUpdate: (id: string, data: Partial<BoardItem>) => void;
   onDelete: (id: string) => void;
-  onFindSimilar: (item: BoardItem) => void; // <--- NEW PROP
+  onFindSimilar: (item: BoardItem) => void; 
 }
 
 export const CanvasItem = ({
