@@ -2,11 +2,9 @@
 import React, { useState, useEffect, useRef } from "react";
 
 interface ButtonProps {
-  key: number;
   initialName: string;
   imageSrc: string;
-
-  onClick: () => void;
+  onClick: () => void; // Triggered when clicking the image
 }
 
 export const MoodBoardButton: React.FC<ButtonProps> = ({
@@ -19,106 +17,95 @@ export const MoodBoardButton: React.FC<ButtonProps> = ({
   const [hasError, setHasError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Handle Right Click
-  const handleRightClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevents the browser context menu
+  // Trigger editing for both Left and Right clicks on the text
+  const startEditing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent the image container/button from catching this
     setIsEditing(true);
   };
 
-  // Handle pressing "Enter" to save
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      setIsEditing(false);
-    }
-  };
+  
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
-      inputRef.current.select(); // Highlights all text inside the input
+      inputRef.current.focus();
+      inputRef.current.select();
     }
   }, [isEditing]);
 
   return (
-    <button
-      onClick={!isEditing ? onClick : undefined}
-      onContextMenu={handleRightClick}
+    <div
       className="
-    group flex flex-col items-center 
-    p-4 hover:p-3 /* Reduce padding on hover to let content expand */
-    bg-white/5 hover:bg-white/10 
-    rounded-2xl transition-all duration-300 ease-in-out 
-    w-48 overflow-hidden focus:outline-none focus:ring-0
-  "
+        group flex flex-col items-center 
+        p-4 hover:p-3 
+        bg-white/5 hover:bg-white/10 
+        rounded-2xl transition-all duration-300 ease-in-out 
+        w-48 overflow-hidden
+      "
     >
-      {/* Image Preview Container */}
+      {/* 1. Image Container - Handles Navigation */}
       <div
+        onClick={onClick}
         className="
-    w-full aspect-square overflow-hidden rounded-xl 
-    mb-3 group-hover:mb-1.5 /* Pull text closer as image expands */
-    shadow-md transition-all duration-300 bg-white
-  "
+          w-full aspect-square overflow-hidden rounded-xl 
+          mb-3 group-hover:mb-1.5 
+          shadow-md transition-all duration-300 bg-white
+          cursor-pointer active:scale-95
+        "
       >
         {!hasError ? (
           <img
             src={imageSrc}
             alt={name}
             onError={() => setHasError(true)}
-            className="
-          w-full h-full object-cover 
-           group-hover:scale-103
-          transition-transform duration-500
-        "
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         ) : (
-          <div className="w-full h-full bg-transparent  flex items-center justify-center">
-            <svg
-              className="w-8 h-8 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+          <div className="w-full h-full flex flex-col items-center justify-center">
+            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
-              No Preview
-            </span>
+            <span className="text-[10px] text-gray-500 font-medium uppercase">No Preview</span>
           </div>
         )}
       </div>
 
-      {/* Editable Name Section */}
-      <div className="w-full h-12 flex items-start justify-center text-center transition-all duration-300">
+      {/* 2. Editable Name Section - Handles Rename */}
+      <div 
+        className="w-full h-12 flex items-start justify-center text-center"
+        onClick={startEditing}
+        onContextMenu={startEditing}
+      >
         {isEditing ? (
           <input
             ref={inputRef}
-            autoFocus
             className="
-          w-full bg-transparent 
-          text-sm font-medium text-center
-          outline-none h-[20px] leading-[20px] 
-          p-0 m-0 border-none box-content
-        "
+              w-full bg-white/20 rounded-md
+              text-sm font-medium text-center
+              outline-none h-[24px] leading-[24px] 
+              p-0 m-0 border-none 
+            "
             value={name}
             onChange={(e) => setName(e.target.value)}
             onBlur={() => setIsEditing(false)}
             onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
+            onClick={(e) => e.stopPropagation()} // Prevent re-triggering startEditing
           />
         ) : (
           <p
             className="
-        w-full truncate 
-        text-sm font-medium 
-        text-black/70 group-hover:text-black 
-        group-hover:scale-102 /* Slightly enlarge text on hover */
-        h-[20px] leading-[20px]
-        p-0 m-0 transition-all duration-300
-        break-words
-      "
+              w-full truncate 
+              text-sm font-medium 
+              text-black/70 group-hover:text-black 
+              h-[20px] leading-[20px]
+              p-0 m-0 transition-all duration-300
+              cursor-text rounded-md
+            "
           >
             {name}
           </p>
         )}
       </div>
-    </button>
+    </div>
   );
 };

@@ -18,26 +18,27 @@ export const CollapsibleSidebar = ({
 
   const handleGlobalMouseMove = useCallback(
     (e: MouseEvent) => {
-      // 1. Handle Sidebar Resizing (Phantom Box)
+      // 1. Handle Sidebar Resizing (Phantom Box on the Right)
       if (isResizing.current && ghostRef.current) {
+        // Math is mirrored: Width is distance from RIGHT edge
         const newWidth = Math.max(
           200,
-          Math.min(e.clientX, window.innerWidth * 0.9),
+          Math.min(window.innerWidth - e.clientX, window.innerWidth * 0.9),
         );
         currentGhostWidth.current = newWidth;
         ghostRef.current.style.width = `${newWidth}px`;
-        return; // Prioritize resizing over proximity logic
+        return;
       }
 
-      // 2. Proximity Logic for the Button
+      // 2. Proximity Logic for the Button (Right 5%)
       if (!isOpen && containerRef.current) {
         const screenWidth = window.innerWidth;
-        const threshold = screenWidth * 0.05; // 5% of the screen
+        const threshold = screenWidth * 0.05;
+        const mouseDistanceFromRight = screenWidth - e.clientX;
 
-        if (e.clientX <= threshold) {
-          // Calculate how deep into the 5% we are (0 to 1)
-          const power = 1 - e.clientX / threshold;
-          // Button "reaches out" up to 40px further
+        if (mouseDistanceFromRight <= threshold) {
+          const power = 1 - mouseDistanceFromRight / threshold;
+          // Peeks out from the right towards the left
           containerRef.current.style.setProperty(
             "--peek-offset",
             `${power * 40}px`,
@@ -75,7 +76,7 @@ export const CollapsibleSidebar = ({
   return (
     <div
       ref={containerRef}
-      className="flex h-screen w-full overflow-hidden bg-white"
+      className="flex h-screen w-full bg-transparent"
       style={
         {
           "--peek-offset": "0px",
@@ -83,10 +84,13 @@ export const CollapsibleSidebar = ({
         } as React.CSSProperties
       }
     >
-      {/* 1. ACTUAL SIDEBAR */}
+      {/* 1. MAIN CONTENT AREA (Now on the left) */}
+      <main className="flex-1  overflow-auto">{/* Main content here */}</main>
+
+      {/* 2. ACTUAL SIDEBAR (Now on the right) */}
       <aside
         style={{ width: isOpen ? `${sidebarWidth}px` : "0px" }}
-        className="relative border-r border-gray-200 bg-white flex-shrink-0 transition-[width] duration-300 ease-in-out z-20"
+        className="relative border-l border-gray-200 bg-white/5 flex-shrink-0 transition-[width] duration-300 ease-in-out z-20"
       >
         {isOpen && (
           <div
@@ -99,53 +103,53 @@ export const CollapsibleSidebar = ({
                 ghostRef.current.style.width = `${sidebarWidth}px`;
               }
             }}
-            className="absolute right-[-4px] top-0 w-[8px] h-full cursor-col-resize z-[110]"
+            // Handle moved to the LEFT edge of the sidebar
+            className="absolute left-[-4px] top-0 w-[8px] h-full cursor-col-resize z-[110]"
           />
         )}
         <div
-          className={`h-full p-6 transition-opacity ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+          className={`h-full my-6 transition-opacity ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         >
           {children}
         </div>
       </aside>
 
-      {/* 2. PHANTOM BOX */}
+      {/* 3. PHANTOM BOX (Anchored to the right) */}
       <div
         ref={ghostRef}
-        className="fixed top-0 left-0 h-full bg-blue-500/5 backdrop-blur-[1px] border-r-2 border-blue-400 z-[100] opacity-0 pointer-events-none"
+        className="fixed top-0 right-0 h-full bg-blue-500/5 backdrop-blur-[1px] border-l-2 border-blue-400 z-[100] opacity-0 pointer-events-none"
       />
 
-      {/* 3. PROXIMITY BUTTON */}
+      {/* 4. PROXIMITY BUTTON (Mirrored) */}
       <div
         ref={buttonRef}
         style={{
-          left: isOpen ? `${sidebarWidth}px` : "var(--peek-offset)",
+          // Uses 'right' instead of 'left'
+          right: isOpen ? `${sidebarWidth}px` : "var(--peek-offset)",
           top: "50%",
-          transform: `translate(-50%, -50%) scale(var(--button-scale))`,
+          // translateX is positive 50% to center it on the right edge
+          transform: `translate(50%, -50%) scale(var(--button-scale))`,
           transition: isResizing.current
             ? "none"
-            : "left 0.3s ease-out, transform 0.1s ease-out",
+            : "right 0.3s ease-out, transform 0.1s ease-out",
         }}
         className="fixed z-[120]"
       >
         <button
           onClick={() => {
             setIsOpen(!isOpen);
-            // Reset peek when opened
             containerRef.current?.style.setProperty("--peek-offset", "0px");
           }}
           className="
             flex h-12 w-12 items-center justify-center 
             rounded-full border border-gray-200 bg-white 
-            shadow-x transition-colors
+            shadow-xl transition-colors
             text-gray-600 active:scale-90
           "
         >
-          {isOpen ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
+          {isOpen ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
         </button>
       </div>
-
-      <main className="flex-1 bg-gray-50">{/* Main content here */}</main>
     </div>
   );
 };
