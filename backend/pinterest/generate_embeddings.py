@@ -1,6 +1,6 @@
 """
-Modal client script to generate pose embeddings for all images in data/downloaded_pins/.
-This script runs locally and calls the Modal API endpoint to process images.
+Modal client script to generate pose and CLIP embeddings for all images in data/downloaded_pins/.
+This script runs locally and calls the Modal API endpoints to process images.
 """
 import base64
 import json
@@ -47,21 +47,23 @@ def get_relative_path(file_path: Path, base_dir: Path) -> str:
     return str(file_path.relative_to(base_dir))
 
 
-def process_image(
+def process_image_embeddings(
     image_path: Path,
-    endpoint_url: str,
+    pose_endpoint_url: str,
+    clip_endpoint_url: str,
     use_bbox_detector: bool = True,
-) -> Optional[Dict]:
+) -> Optional[Dict[str, List[float]]]:
     """
-    Process a single image through the Modal API endpoint.
+    Process a single image through both pose and CLIP Modal API endpoints.
 
     Args:
         image_path: Path to the image file
-        endpoint_url: URL of the Modal web endpoint
-        use_bbox_detector: Whether to use bounding box detector
+        pose_endpoint_url: URL of the pose embedding endpoint
+        clip_endpoint_url: URL of the CLIP image embedding endpoint
+        use_bbox_detector: Whether to use bounding box detector for pose
 
     Returns:
-        Dictionary with embedding and metadata, or None if failed
+        Dictionary with 'pose_embedding' and 'clip_embedding' keys, or None if failed
     """
     try:
         # Read image file as bytes
@@ -70,32 +72,62 @@ def process_image(
         # Encode as base64 string
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-        # Prepare request payload
-        payload = {
+        results = {}
+
+        # Get pose embedding
+        pose_payload = {
             "image": image_base64,
             "use_bbox_detector": use_bbox_detector,
         }
+        try:
+            pose_response = requests.post(
+                pose_endpoint_url, json=pose_payload, timeout=300)
+            pose_response.raise_for_status()
+            pose_result = pose_response.json()
 
-        # Call Modal API endpoint via HTTP
-        response = requests.post(endpoint_url, json=payload, timeout=300)
-        response.raise_for_status()
+            if pose_result.get("success") and pose_result.get("embedding"):
+                results["pose_embedding"] = pose_result["embedding"]
+            else:
+                print(
+                    f"  Pose embedding failed: {pose_result.get('error', 'Unknown error')}")
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"  HTTP error getting pose embedding: {str(e)}")
+            return None
 
-        result = response.json()
-        return result
-    except requests.exceptions.RequestException as e:
-        print(f"  HTTP error processing {image_path.name}: {str(e)}")
-        return None
+        # Get CLIP embedding
+        clip_payload = {
+            "image": image_base64,
+            "normalize": False,
+        }
+        try:
+            clip_response = requests.post(
+                clip_endpoint_url, json=clip_payload, timeout=300)
+            clip_response.raise_for_status()
+            clip_result = clip_response.json()
+
+            if clip_result.get("success") and clip_result.get("embedding"):
+                results["clip_embedding"] = clip_result["embedding"]
+            else:
+                print(
+                    f"  CLIP embedding failed: {clip_result.get('error', 'Unknown error')}")
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"  HTTP error getting CLIP embedding: {str(e)}")
+            return None
+
+        return results
     except Exception as e:
         print(f"  Error processing {image_path.name}: {str(e)}")
         return None
 
 
 def main():
-    """Main function to process all images and generate embeddings."""
+    """Main function to process all images and generate pose and CLIP embeddings."""
     # Get paths
     backend_dir = Path(__file__).parent.parent
     data_dir = backend_dir / "data" / "downloaded_pins"
-    output_file = backend_dir / "data" / "pose_embeddings.json"
+    output_file = backend_dir / "data" / "embeddings.json"
 
     if not data_dir.exists():
         print(f"Error: Data directory not found: {data_dir}")
@@ -103,63 +135,71 @@ def main():
 
     # Find all image files
     print(f"Scanning for images in {data_dir}...")
-    image_files = find_image_files(data_dir)
+    image_files = find_image_files(data_dir)[:2]
     print(f"Found {len(image_files)} image files")
 
     if len(image_files) == 0:
         print("No image files found. Exiting.")
         return
 
-    # Get Modal function reference and endpoint URL
-    print("Connecting to Modal function...")
+    # Get Modal function references and endpoint URLs
+    print("Connecting to Modal functions...")
     try:
-        modal_function = modal.Function.from_name(
-            "backend", "image_to_pose_embedding"
-        )
-        # Get the web endpoint URL using Modal's API (as per Modal docs)
-        endpoint_url = modal_function.get_web_url()
-        print(f"Using endpoint: {endpoint_url}")
+        pose_function = modal.Function.from_name("backend", "image_to_pose_embedding")
+        clip_function = modal.Function.from_name("backend", "image_to_clip_embedding")
+
+        pose_endpoint_url = pose_function.get_web_url()
+        clip_endpoint_url = clip_function.get_web_url()
+
+        if pose_endpoint_url is None or clip_endpoint_url is None:
+            print("Error: Could not get endpoint URLs from Modal functions.")
+            print("Make sure the Modal app is deployed: modal deploy backend/modal_api.py")
+            return
+
+        print(f"Pose endpoint: {pose_endpoint_url}")
+        print(f"CLIP endpoint: {clip_endpoint_url}")
     except Exception as e:
-        print(f"Error connecting to Modal function: {str(e)}")
+        print(f"Error connecting to Modal functions: {str(e)}")
         print("Make sure the Modal app is deployed: modal deploy backend/modal_api.py")
         return
 
     # Process images and build mapping
-    embeddings_map: Dict[str, List[float]] = {}
+    # Structure: {relative_path: {"pose_embedding": [...], "clip_embedding": [...]}}
+    embeddings_map: Dict[str, Dict[str, List[float]]] = {}
     successful = 0
     failed = 0
     no_person = 0
 
     print(f"\nProcessing {len(image_files)} images...")
     for i, image_path in enumerate(image_files, 1):
+        # Get relative path from downloaded_pins directory (includes board subdirectory)
         relative_path = get_relative_path(image_path, data_dir)
         print(f"[{i}/{len(image_files)}] Processing: {relative_path}")
 
-        result = process_image(image_path, endpoint_url)
+        result = process_image_embeddings(
+            image_path, pose_endpoint_url, clip_endpoint_url
+        )
 
         if result is None:
             failed += 1
             continue
 
-        if not result.get("success", False):
-            error = result.get("error", "Unknown error")
-            if "No person detected" in error:
-                no_person += 1
-            else:
-                failed += 1
-            print(f"  Failed: {error}")
-            continue
-
-        embedding = result.get("embedding")
-        if embedding is None:
+        # Check if we got both embeddings
+        if "pose_embedding" not in result or "clip_embedding" not in result:
             failed += 1
-            print("  Failed: No embedding in response")
+            print("  Failed: Missing one or both embeddings")
             continue
 
-        # Store embedding with relative path as key
-        embeddings_map[relative_path] = embedding
+        # Store both embeddings with relative path as key
+        embeddings_map[relative_path] = {
+            "pose_embedding": result["pose_embedding"],
+            "clip_embedding": result["clip_embedding"],
+        }
         successful += 1
-        print(f"  Success! Embedding dimension: {len(embedding)}")
+        print(
+            f"  Success! Pose: {len(result['pose_embedding'])} dims, "
+            f"CLIP: {len(result['clip_embedding'])} dims"
+        )
 
     # Save results to JSON
     print(f"\nSaving results to {output_file}...")
