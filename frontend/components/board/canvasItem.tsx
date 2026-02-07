@@ -1,16 +1,22 @@
 "use client";
 
 import { Rnd } from "react-rnd";
-import { X } from "lucide-react";
+import { X, ScanSearch } from "lucide-react"; // Import ScanSearch icon
 import { BoardItem } from "@/lib/db";
 
 interface CanvasItemProps {
   item: BoardItem;
   onUpdate: (id: string, data: Partial<BoardItem>) => void;
   onDelete: (id: string) => void;
+  onFindSimilar: (item: BoardItem) => void; // <--- NEW PROP
 }
 
-export const CanvasItem = ({ item, onUpdate, onDelete }: CanvasItemProps) => {
+export const CanvasItem = ({
+  item,
+  onUpdate,
+  onDelete,
+  onFindSimilar,
+}: CanvasItemProps) => {
   const imageUrl = URL.createObjectURL(item.fileBlob);
 
   return (
@@ -37,15 +43,30 @@ export const CanvasItem = ({ item, onUpdate, onDelete }: CanvasItemProps) => {
           className="pointer-events-none h-full w-full object-cover select-none"
         />
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(item.id);
-          }}
-          className="absolute -top-3 -right-3 cursor-pointer rounded-full bg-red-500 p-1 text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100"
-        >
-          <X size={12} />
-        </button>
+        <div className="absolute -top-3 -right-3 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onFindSimilar(item);
+            }}
+            title="Find Similar Poses"
+            className="cursor-pointer rounded-full bg-blue-600 p-1.5 text-white shadow-md hover:bg-blue-700"
+          >
+            <ScanSearch size={12} />
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(item.id);
+            }}
+            title="Delete"
+            className="cursor-pointer rounded-full bg-red-500 p-1.5 text-white shadow-md hover:bg-red-600"
+          >
+            <X size={12} />
+          </button>
+        </div>
 
         <div className="pointer-events-none absolute -bottom-6 left-0 rounded bg-black/50 px-2 py-0.5 text-[10px] whitespace-nowrap text-white opacity-0 group-hover:opacity-100">
           {item.name}
