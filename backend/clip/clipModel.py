@@ -1,7 +1,6 @@
 import torch
 from transformers import CLIPProcessor, CLIPModel
-# from transformers.image_utils import load_image
-from backend.modal_app import image, app
+from modal_app import image, app
 import modal
 
 
@@ -11,10 +10,10 @@ import modal
 
 
 @app.cls(gpu="A10G", image=image)
-class CLIPModel():
-    @modal.enter()
-    def setup(self, device : str):
-        self.device = device or ("cuda" if torch.cuda_is_available() else "cpu")
+class Clip():
+    # @modal.enter()
+    def __init__(self, device = None):
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
         self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
         self.model.to(self.device)
@@ -47,5 +46,8 @@ class CLIPModel():
             outputs = torch.nn.functional.normalize(outputs, dim=-1)
 
         return outputs
+
+    def get_similarity_score(self, text_enc, image_enc):
+        return torch.matmul(text_enc.pooler_output, image_enc.pooler_output.T)
     
 
