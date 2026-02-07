@@ -75,8 +75,8 @@ export const CanvasItem = ({
 
                 <div className="space-y-1">
                   <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase">
-                    <span>Pose</span>
                     <span>Text</span>
+                    <span>Pose</span>
                   </div>
                   <input
                     type="range"
