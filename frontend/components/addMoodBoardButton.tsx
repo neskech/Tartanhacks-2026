@@ -11,10 +11,10 @@ export const AddMoodBoardButton: React.FC<Props> = ({ onClick }) => {
       onClick={onClick}
       className="
         flex items-center gap-2 px-4 py-2 
-        bg-white/10 backdrop-blur-lg 
+        bg-white/10 backdrop-blur-lg  
         border border-gray-500/30  rounded-full 
         transition-all duration-300
-        hover:bg-blue-600/20 hover:border-blue-400/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.4)]
+        hover:bg-grey-600/20 hover:border-black-300/50 hover:shadow-[0_0_15px_rgba(130,130,130,0.4)]
       "
     >
       <Plus size={18} className="text-black-400" />
