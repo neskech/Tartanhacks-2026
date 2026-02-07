@@ -1,0 +1,5 @@
+backend/.venv/
+frontend/node_modules/
+backend/pose/checkpoints/sam-3d-body-vith/
+backend/checkpoints/sam-3d-body-dinov3/
+backend/data/downloaded_pins/
