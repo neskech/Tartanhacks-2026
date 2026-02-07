@@ -1,7 +1,6 @@
 from backend.modal_app import app, image
 import modal
 
-
 # 2. Optimized Web Endpoint
 @app.function(image=image)
 @modal.fastapi_endpoint(method="POST") # Replaces web_endpoint
