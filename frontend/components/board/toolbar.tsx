@@ -7,7 +7,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-export const Navbar = ({
+export const Toolbar = ({
   onImageUpload,
 }: {
   onImageUpload: (file: File) => void;
@@ -19,9 +19,12 @@ export const Navbar = ({
     const file = e.target.files?.[0];
     if (file) {
       onImageUpload(file);
-      // Optional: switch tool to select after upload
       setActiveTool("select");
     }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
   };
 
   const navItems = [
@@ -31,15 +34,14 @@ export const Navbar = ({
       icon: ImageIcon,
       label: "Upload Image",
       hasDropdown: true,
-      onClick: () => fileInputRef.current?.click(),
+      onClick: handleUploadClick,
     },
     { id: "sketch", icon: Pencil, label: "Sketch Tool", hasDropdown: true },
   ];
 
   return (
-    <div className="fixed top-6 m-2 left-1/2 -translate-x-1/2 z-50 ">
-      <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1.5 rounded-2xl shadow-lg">
-        {/* Hidden File Input */}
+    <div className="fixed top-6 left-1/2 z-50 m-2 -translate-x-1/2">
+      <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1.5 shadow-lg">
         <input
           type="file"
           ref={fileInputRef}
@@ -48,18 +50,19 @@ export const Navbar = ({
           className="hidden"
         />
 
+        {/* eslint-disable-next-line react-hooks/refs */}
         {navItems.map((item) => {
           const isActive = activeTool === item.id;
           const Icon = item.icon;
 
           return (
-            <div key={item.id} className="flex items-center group">
+            <div key={item.id} className="group flex items-center">
               <button
                 onClick={() => {
                   setActiveTool(item.id);
                   if (item.onClick) item.onClick();
                 }}
-                className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 ${
+                className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
                   isActive
                     ? "bg-[#0c8ce9] text-white shadow-lg shadow-blue-500/20"
                     : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
@@ -70,7 +73,7 @@ export const Navbar = ({
               </button>
 
               {item.hasDropdown && (
-                <button className="h-10 px-1 text-gray-500 hover:text-gray-300 transition-colors">
+                <button className="h-10 px-1 text-gray-500 transition-colors hover:text-gray-300">
                   <ChevronDown size={12} />
                 </button>
               )}
@@ -79,9 +82,9 @@ export const Navbar = ({
         })}
       </div>
 
-      {/* Mode Indicator Tooltip (Optional) */}
-      <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/80 rounded-full border border-white/10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-        <span className="text-[10px] text-white font-medium uppercase tracking-widest whitespace-nowrap">
+      {/* Mode Indicator Tooltip */}
+      <div className="pointer-events-none absolute -bottom-10 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-black/80 px-3 py-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <span className="text-[10px] font-medium tracking-widest whitespace-nowrap text-white uppercase">
           Current Mode: {activeTool}
         </span>
       </div>
