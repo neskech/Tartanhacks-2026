@@ -33,6 +33,7 @@ image = (
     # 5. Local Mounts (LAST)
     # These are "Local Steps" - changing these files won't trigger an image rebuild
     .add_local_file(backend_dir / "modal_app.py", remote_path="/root/modal_app.py")
+    .add_local_file(backend_dir / "clip_text_embeddings.json", remote_path="/root/clip_text_embeddings.json")
     .add_local_dir(backend_dir / "pose",
                    remote_path="/root/pose").add_local_dir(
                        backend_dir / "clip",

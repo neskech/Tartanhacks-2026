@@ -27,7 +27,7 @@ def _load(is_volume: bool):
     return load_sam_3d_body(checkpoint_path=CHECKPOINT_PATH, mhr_path=MHR_PATH)
 
 
-@app.cls(gpu="A10G", image=image, volumes={"/root/data": volume})
+@app.cls(gpu="A10G", image=image, volumes={"/root/data": volume}, container_idle_timeout=300)
 class SAM3DBodyInference:
     """Modal model class for SAM 3D Body 2D pose inference."""
 

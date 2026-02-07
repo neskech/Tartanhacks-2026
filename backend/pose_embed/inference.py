@@ -66,7 +66,7 @@ def _load_model():
     return model, config
 
 
-@app.cls(gpu="A10G", image=image, volumes={"/root/data": volume})
+@app.cls(gpu="A10G", image=image, volumes={"/root/data": volume}, container_idle_timeout=300)
 class PoseEmbedding:
     """Modal model class for extracting embeddings from 2D poses using PoseC3D."""
 

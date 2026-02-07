@@ -25,6 +25,22 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     Returns:
         Cosine similarity score between -1 and 1
     """
+    # Convert to numpy arrays if needed
+    if not isinstance(a, np.ndarray):
+        a = np.array(a, dtype=np.float32)
+    if not isinstance(b, np.ndarray):
+        b = np.array(b, dtype=np.float32)
+
+    # Ensure they are 1D vectors
+    a = a.flatten()
+    b = b.flatten()
+
+    # Check dimensions match
+    if a.shape != b.shape:
+        raise ValueError(
+            f"Vector dimensions must match: a.shape={a.shape}, b.shape={b.shape}"
+        )
+
     # Handle zero vectors
     norm_a = np.linalg.norm(a)
     norm_b = np.linalg.norm(b)
@@ -54,11 +70,13 @@ def load_embeddings_json(json_path: Path) -> Dict[str, Dict[str, List[float]]]:
     if not json_path.exists():
         raise FileNotFoundError(f"Embeddings file not found: {json_path}")
 
+    print("Loading embedding json...")
     with open(json_path, "r") as f:
         data = json.load(f)
-
+    print("Done loading embeddings json!")
     if "embeddings" not in data:
-        raise ValueError("Invalid embeddings JSON structure: missing 'embeddings' key")
+        raise ValueError(
+            "Invalid embeddings JSON structure: missing 'embeddings' key")
 
     return data["embeddings"]
 
@@ -104,6 +122,93 @@ def parse_image(image_data: str | bytes | np.ndarray) -> Tuple[np.ndarray, Tuple
 
     img_array = np.array(pil_image)
     return img_array, img_array.shape[:2]
+
+
+def load_clip_text_embeddings(json_path: Path) -> Dict[str, np.ndarray]:
+    """
+    Load CLIP text embeddings from JSON file and convert to numpy arrays.
+
+    Args:
+        json_path: Path to the clip_text_embeddings.json file
+
+    Returns:
+        Dictionary mapping text strings to numpy arrays of embeddings
+
+    Raises:
+        FileNotFoundError: If JSON file doesn't exist
+        ValueError: If JSON structure is invalid
+    """
+    if not json_path.exists():
+        raise FileNotFoundError(f"CLIP text embeddings file not found: {json_path}")
+
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    # Convert nested list structure to numpy arrays
+    # Each word has format: "word": [[embedding_values...]]
+    embeddings_dict = {}
+    for word, embedding_list in data.items():
+        if isinstance(embedding_list, list) and len(embedding_list) > 0:
+            # Handle nested list structure: [[...]] -> [...]
+            if isinstance(embedding_list[0], list):
+                embeddings_dict[word] = np.array(embedding_list[0], dtype=np.float32)
+            else:
+                embeddings_dict[word] = np.array(embedding_list, dtype=np.float32)
+
+    return embeddings_dict
+
+
+def is_portrait_embedding(
+    image_embedding: np.ndarray,
+    text_embeddings: Dict[str, np.ndarray],
+    threshold: float = 0.0
+) -> bool:
+    """
+    Check if an image embedding is likely a portrait using CLIP text embeddings.
+    This uses pre-computed embeddings, so it's fast and doesn't require CLIP inference.
+
+    Args:
+        image_embedding: Pre-computed CLIP image embedding as numpy array
+        text_embeddings: Dictionary of text embeddings from load_clip_text_embeddings()
+        threshold: Threshold for classification (default: 0.25)
+
+    Returns:
+        True if image is classified as a portrait, False otherwise
+    """
+    # Portrait-related keywords
+    portrait_keywords = ["a portrait", "headshot", "face only", "close-up portrait"]
+    # Full-body keywords
+    full_body_keywords = ["full body", "full body pose", "person standing", "full figure"]
+
+    # Ensure embedding is numpy array
+    if not isinstance(image_embedding, np.ndarray):
+        image_embedding = np.array(image_embedding, dtype=np.float32)
+    else:
+        image_embedding = image_embedding.astype(np.float32)
+
+    # Compute similarities to portrait keywords
+    portrait_similarities = []
+    for keyword in portrait_keywords:
+        if keyword in text_embeddings:
+            similarity = cosine_similarity(image_embedding, text_embeddings[keyword])
+            portrait_similarities.append(similarity)
+
+    # Compute similarities to full-body keywords
+    full_body_similarities = []
+    for keyword in full_body_keywords:
+        if keyword in text_embeddings:
+            similarity = cosine_similarity(image_embedding, text_embeddings[keyword])
+            full_body_similarities.append(similarity)
+
+    # If no embeddings found, default to not a portrait
+    if not portrait_similarities or not full_body_similarities:
+        return False
+
+    # Classify as portrait if max portrait similarity > max full-body similarity + threshold
+    max_portrait_sim = max(portrait_similarities)
+    max_full_body_sim = max(full_body_similarities)
+
+    return max_portrait_sim > max_full_body_sim + threshold
 
 
 # --- 1. THE ORCHESTRATOR (CPU ONLY) ---
@@ -281,12 +386,12 @@ def image_to_clip_embedding(data: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-# --- 5. SKETCH-TO-PINTEREST SEARCH ---
-@app.function(image=image, volumes={"/root/data": volume})
-@modal.web_endpoint(method="POST")
-def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
+# --- 5. THE SEARCH LOGIC (Can be called via .remote) ---
+@app.function(image=image, volumes={"/root/data": volume}, container_idle_timeout=300)
+def run_search_pipeline(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Search for similar Pinterest images using hybrid pose + CLIP similarity.
+    This is the core logic function that can be called with .remote()
 
     Args:
         data: Dictionary containing:
@@ -294,6 +399,7 @@ def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
             - "text": Text query string
             - "k": Number of top results to return (default: 10)
             - "lambda": Smoothing factor for hybrid score (default: 0.5, range: 0-1)
+            - "filter_portraits": Boolean to filter out portrait images (default: False)
 
     Returns:
         Dictionary with:
@@ -306,18 +412,37 @@ def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
     text = data.get("text")
     k = data.get("k", 10)
     lambda_param = data.get("lambda", 0.5)
+    filter_portraits = data.get("filter_portraits", False)
 
     if sketch_data is None:
-        return {"success": False, "error": "No sketch image provided", "results": []}
+        return {
+            "success": False,
+            "error": "No sketch image provided",
+            "results": []
+        }
 
     if text is None or not isinstance(text, str) or not text.strip():
-        return {"success": False, "error": "No text query provided", "results": []}
+        return {
+            "success": False,
+            "error": "No text query provided",
+            "results": []
+        }
 
     # Clamp lambda to [0, 1]
     lambda_param = max(0.0, min(1.0, float(lambda_param)))
 
-    # Clamp k to reasonable range
-    k = max(1, min(int(k), 100))
+    # Load text embeddings for portrait filtering if needed
+    text_embeddings = None
+    if filter_portraits:
+        try:
+            backend_dir = Path(__file__).parent
+            text_embeddings_path = backend_dir / "clip_text_embeddings.json"
+            text_embeddings = load_clip_text_embeddings(text_embeddings_path)
+            print(f"Loaded {len(text_embeddings)} text embeddings for portrait filtering")
+        except Exception as e:
+            print(f"Warning: Failed to load text embeddings for portrait filtering: {e}")
+            print("Continuing without portrait filtering...")
+            filter_portraits = False
 
     try:
         # Step 1: Extract query embeddings
@@ -391,11 +516,13 @@ def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
                 "results": [],
             }
 
-        # Step 3: Compute similarity scores
+        # Step 3: Compute similarity scores and filter portraits if requested
         scores = []
         P_A_np = np.array(P_A, dtype=np.float32)
         C_A_np = np.array(C_A, dtype=np.float32)
 
+        # Clamp k to reasonable range
+        k = max(1, min(int(k), len(embeddings_map)))
         for relative_path, embeddings in embeddings_map.items():
             try:
                 # Extract P_B and C_B
@@ -405,15 +532,46 @@ def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
                 P_B = np.array(embeddings["pose_embedding"], dtype=np.float32)
                 C_B = np.array(embeddings["clip_embedding"], dtype=np.float32)
 
+                # Filter out portraits if requested (using pre-computed C_B embedding)
+                if filter_portraits and text_embeddings:
+                    if is_portrait_embedding(C_B, text_embeddings):
+                        print(f"Filtering out portrait: {relative_path}")
+                        continue
+
                 # Compute cosine similarities
                 pose_sim = cosine_similarity(P_A_np, P_B)
                 clip_sim = cosine_similarity(C_A_np, C_B)
 
                 # Compute closeness score
-                closeness_score = lambda_param * pose_sim + (1 - lambda_param) * clip_sim
+                closeness_score = lambda_param * pose_sim + (
+                    1 - lambda_param) * clip_sim
 
                 scores.append((relative_path, closeness_score))
-            except Exception:
+            except Exception as e:
+                # Print detailed error information
+                import traceback
+                print(f"ERROR in score loop for {relative_path}:")
+                print(f"  Exception type: {type(e).__name__}")
+                print(f"  Exception message: {str(e)}")
+                print(
+                    f"  P_A_np shape: {P_A_np.shape if P_A_np is not None else 'None'}"
+                )
+                print(
+                    f"  C_A_np shape: {C_A_np.shape if C_A_np is not None else 'None'}"
+                )
+                if "pose_embedding" in embeddings:
+                    pose_emb = embeddings["pose_embedding"]
+                    print(
+                        f"  pose_embedding type: {type(pose_emb)}, length: {len(pose_emb) if hasattr(pose_emb, '__len__') else 'N/A'}"
+                    )
+                if "clip_embedding" in embeddings:
+                    clip_emb = embeddings["clip_embedding"]
+                    print(
+                        f"  clip_embedding type: {type(clip_emb)}, length: {len(clip_emb) if hasattr(clip_emb, '__len__') else 'N/A'}"
+                    )
+                print("  Full traceback:")
+                traceback.print_exc()
+                print("-" * 60)
                 # Skip this image if there's an error
                 continue
 
@@ -424,7 +582,7 @@ def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
                 "results": [],
             }
 
-        # Step 4: Rank and select top k
+        # Step 4: Rank scores
         scores.sort(key=lambda x: x[1], reverse=True)
         top_k = scores[:k]
 
@@ -443,8 +601,9 @@ def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
             except FileNotFoundError:
                 # Skip if image file is missing
                 continue
-            except Exception:
+            except Exception as e:
                 # Skip on other errors
+                print(f"Error processing {relative_path}: {e}")
                 continue
 
         if not results:
@@ -464,9 +623,35 @@ def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         return {
             "success": False,
-            "error": f"Unexpected error: {str(e)}",
+            "error": f"An unexpected error occurred during search: {str(e)}",
             "results": [],
         }
+
+
+# --- 6. THE WEB ENDPOINT WRAPPER ---
+@app.function(image=image, volumes={"/root/data": volume})
+@modal.web_endpoint(method="POST")
+def search_similar_images(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Public API Endpoint for searching similar Pinterest images.
+    This is a web endpoint wrapper that calls the core logic function.
+
+    Args:
+        data: Dictionary containing:
+            - "sketch": Base64 encoded image string, image bytes, or numpy array
+            - "text": Text query string
+            - "k": Number of top results to return (default: 10)
+            - "lambda": Smoothing factor for hybrid score (default: 0.5, range: 0-1)
+            - "filter_portraits": Boolean to filter out portrait images (default: False)
+
+    Returns:
+        Dictionary with:
+            - "success": Boolean indicating success
+            - "results": List of dicts with {"path": relative_path, "image": base64_string, "score": closeness_score}
+            - "error": Optional error message
+    """
+    # Call the logic function locally (saves cold boot)
+    return run_search_pipeline.local(data)
 
 
 # --- 6. INTERNAL TEST SUITE ---
@@ -509,49 +694,108 @@ def main():
     #     print(f"❌ Exception: {e}")
 
     # Test 2: CLIP Text Embedding
-    print("\n" + "-" * 60)
-    print("[Test 2] Testing CLIP Text Embedding")
-    print("-" * 60)
+    # print("\n" + "-" * 60)
+    # print("[Test 2] Testing CLIP Text Embedding")
+    # print("-" * 60)
 
-    test_texts = [
-        "a person doing yoga",
-        "someone running",
-        "a person standing"
-    ]
+    # test_texts = [
+    #     "a person doing yoga",
+    #     "someone running",
+    #     "a person standing"
+    # ]
 
-    try:
-        clip_model = Clip()
-        print(f"📡 Encoding {len(test_texts)} text(s)...")
-        embeddings = clip_model.encode_text.remote(texts=test_texts, normalize=False)
+    # try:
+    #     clip_model = Clip()
+    #     print(f"📡 Encoding {len(test_texts)} text(s)...")
+    #     embeddings = clip_model.encode_text.remote(texts=test_texts, normalize=False)
 
-        print("✅ Success!")
-        print(f"   Input texts: {len(test_texts)}")
-        print(f"   Embedding shape: {embeddings.shape}")
-        print(f"   Embedding dimension: {embeddings.shape[1]}")
-        print(f"   Sample embedding (first text, first 5 dims): {embeddings[0][:5]}")
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
+    #     print("✅ Success!")
+    #     print(f"   Input texts: {len(test_texts)}")
+    #     print(f"   Embedding shape: {embeddings.shape}")
+    #     print(f"   Embedding dimension: {embeddings.shape[1]}")
+    #     print(f"   Sample embedding (first text, first 5 dims): {embeddings[0][:5]}")
+    # except Exception as e:
+    #     print(f"❌ Error: {e}")
+    #     import traceback
+    #     traceback.print_exc()
 
     # Test 3: CLIP Image Embedding
+    # print("\n" + "-" * 60)
+    # print("[Test 3] Testing CLIP Image Embedding")
+    # print("-" * 60)
+
+    # if not image_path.exists():
+    #     print("Skipping CLIP Image Embedding test: No valid image available.")
+    # else:
+    #     try:
+    #         clip_model = Clip()
+    #         print(f"📡 Encoding image (shape: {dummy_img.shape})...")
+    #         embedding = clip_model.encode_image.remote(image=dummy_img, normalize=False)
+
+    #         print("✅ Success!")
+    #         print(f"   Embedding shape: {embedding.shape}")
+    #         print(f"   Embedding dimension: {embedding.shape[0]}")
+    #         print(f"   Sample embedding (first 5 dims): {embedding[:5]}")
+    #     except Exception as e:
+    #         print(f"❌ Error: {e}")
+    #         import traceback
+    #         traceback.print_exc()
+
+    # Test 4: Search Similar Images
     print("\n" + "-" * 60)
-    print("[Test 3] Testing CLIP Image Embedding")
+    print("[Test 4] Testing Search Similar Images")
     print("-" * 60)
 
-    try:
-        clip_model = Clip()
-        print(f"📡 Encoding image (shape: {dummy_img.shape})...")
-        embedding = clip_model.encode_image.remote(image=dummy_img, normalize=False)
+    # Load test image from data/test
+    test_image_path = backend_dir / "data" / "test" / "draw.png"
+    if not test_image_path.exists():
+        print(f"❌ Test image not found: {test_image_path}")
+        print("   Skipping search test...")
+    else:
+        try:
+            print(f"📷 Loading test image: {test_image_path.relative_to(backend_dir)}")
+            test_pil_image = Image.open(test_image_path)
+            if test_pil_image.mode != "RGB":
+                test_pil_image = test_pil_image.convert("RGB")
+            test_img_array = np.array(test_pil_image)
+            print(f"   Image shape: {test_img_array.shape}")
 
-        print("✅ Success!")
-        print(f"   Embedding shape: {embedding.shape}")
-        print(f"   Embedding dimension: {embedding.shape[0]}")
-        print(f"   Sample embedding (first 5 dims): {embedding[:5]}")
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
+            search_text = "a person"
+            search_k = 6
+            search_lambda = 0.5
+
+            print(f"📡 Searching for top {search_k} images...")
+            print(f"   Text query: '{search_text}'")
+            print(f"   Lambda (pose weight): {search_lambda}")
+
+            search_result = run_search_pipeline.remote(
+                data={
+                    "sketch": test_img_array,
+                    "text": search_text,
+                    "k": search_k,
+                    "lambda": search_lambda,
+                }
+            )
+
+            if search_result.get("success"):
+                results = search_result.get("results", [])
+                print(f"✅ Search Success! Found {len(results)} results.")
+                print("\n   Top 6 Results (Absolute File Paths):")
+                print("-" * 60)
+
+                for i, res in enumerate(results, 1):
+                    relative_path = res.get("path", "unknown")
+                    score = res.get("score", 0.0)
+                    # Convert relative path to absolute path
+                    absolute_path = backend_dir / "data" / "downloaded_pins" / relative_path
+                    print(f"   {i}. {absolute_path}")
+                    print(f"      Score: {score:.4f}")
+            else:
+                print(f"❌ Search Error: {search_result.get('error', 'Unknown error')}")
+        except Exception as e:
+            print(f"❌ Search Exception: {e}")
+            import traceback
+            traceback.print_exc()
 
     print("\n" + "=" * 60)
     print("Test Suite Complete!")

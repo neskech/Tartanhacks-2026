@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 from io import BytesIO
 
 # Test image path
-TEST_IMAGE_PATH = Path(__file__).parent / "data" / "test" / "draw.png"
+TEST_IMAGE_PATH = Path(__file__).parent / "data" / "test" / "real.png"
 # Text description for the search
-TEST_TEXT = "a person standing with arms raised"
+TEST_TEXT = "a person"
 
 
 def load_image_base64(image_path: Path) -> str:
@@ -77,7 +77,8 @@ def main():
             "sketch": sketch_base64,
             "text": TEST_TEXT,
             "k": 6,
-            "lambda": 0.5,  # Equal weight for pose and CLIP
+            "lambda": 0.8,  # Equal weight for pose and CLIP
+            "filter_portraits": True,  # Filter out portrait images
         }
 
         response = requests.post(search_endpoint_url, json=payload, timeout=300)
